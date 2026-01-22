@@ -6,12 +6,12 @@ import (
 
 type RoundRobin struct {
 	counter atomic.Uint64
+	Servers []string
 }
 
-func (robin *RoundRobin) NextServer(servers []string) string {
-	if len(servers) == 0 {
+func (robin *RoundRobin) Next() string {
+	if len(robin.Servers) == 0 {
 		return ""
 	}
-	val := robin.counter.Add(1)
-	return servers[int(val - 1) % len(servers)]
+	return robin.Servers[int(robin.counter.Add(1)-1)%len(robin.Servers)]
 }

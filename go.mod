@@ -1,3 +1,5 @@
-module github.com/ahmedQuadimi/Titan
+module github.com/ahmedQuadimi/Aegis
 
 go 1.25.5
+
+require gopkg.in/yaml.v3 v3.0.1

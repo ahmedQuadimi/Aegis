@@ -4,8 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
-	"github.com/ahmedQuadimi/Titan/internal/adapters/config"
+
+	"github.com/ahmedQuadimi/Aegis/internal/adapters/config"
+	"github.com/ahmedQuadimi/Aegis/internal/engine"
+	"github.com/ahmedQuadimi/Aegis/internal/lb"
 )
 
 type Server struct {
@@ -14,26 +18,34 @@ type Server struct {
 }
 
 func NewServer(cfg *config.Config) *Server {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK) 
-		w.Write([]byte("Titan proxy is available"))
-	})
+
+	pool := &sync.Pool{
+		New: func() any {
+			return make([]byte, engine.DefaultBufferSize)
+		},
+	}
+	mainRoute := cfg.Routes[0]
+	targets := make([]string, len(mainRoute.Backends))
+	for i, backend := range mainRoute.Backends {
+		targets[i] = backend.Addr
+	}
+	balancer := lb.RoundRobin{Servers: targets}
+	proxyHandler := engine.NewEngine(&balancer, pool)
 
 	return &Server{
 		config: cfg,
 		server: &http.Server{
-			Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-			Handler:      mux,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  120 * time.Second, 
+			Addr:         fmt.Sprintf(":%d", cfg.Listener.Port),
+			Handler:      proxyHandler,
+			ReadTimeout:  time.Duration(cfg.Defaults.TimeoutRead) * time.Millisecond,
+			WriteTimeout: time.Duration(cfg.Defaults.TimeoutWrite) * time.Millisecond,
+			IdleTimeout:  time.Duration(cfg.Defaults.TimeoutIdle) * time.Millisecond,
 		},
 	}
 }
 
 func (s *Server) Start() error {
-	fmt.Printf("The Titans are heading out on port: %d\n", s.config.Server.Port)
+	fmt.Printf("The Aegis are heading out on port: %d\n", s.config.Listener.Port)
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}

@@ -1,0 +1,23 @@
+listener:
+  port: 8080
+  protocol: http
+
+defaults:
+  timeout_read: 5000    
+  timeout_write: 10000  
+  timeout_idle: 60000   
+  timeout_connect: 2000 
+  health_check_interval: 10000
+
+routes:
+  - host: "api.aegis.io"
+    path: "/"
+    strategy: "round_robin"
+    retries: 3
+    
+    backends:
+      - addr: "http://localhost:8081"
+      - addr: "http://localhost:8082"
+
+    rate_limit_rps: 1000
+    redis_url: "redis://localhost:6379"
