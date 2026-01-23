@@ -5,13 +5,21 @@ import (
 )
 
 type RoundRobin struct {
-	counter atomic.Uint64
-	Servers []string
+	counter  atomic.Uint64
+	Backends []*Backend
 }
 
 func (robin *RoundRobin) Next() string {
-	if len(robin.Servers) == 0 {
+	n := uint64(len(robin.Backends))
+	if n == 0 {
 		return ""
 	}
-	return robin.Servers[int(robin.counter.Add(1)-1)%len(robin.Servers)]
+	for i := uint64(0); i < n; i++ {
+		idx := robin.counter.Add(1) - 1
+		target := robin.Backends[idx%n]
+		if target.IsAlive() {
+			return target.Addr
+		}
+	}
+	return ""
 }

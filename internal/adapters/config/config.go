@@ -40,7 +40,17 @@ type RouteConfig struct {
 }
 
 type BackendConfig struct {
-	Addr string `yaml:"addr"`
+	Addr        string            `yaml:"addr"`
+	HealthCheck HealthCheckConfig `yaml:"health_check"`
+}
+
+type HealthCheckConfig struct {
+	Method             string `yaml:"method"`
+	Path               string `yaml:"path"`
+	Interval           int    `yaml:"interval"`
+	Timeout            int    `yaml:"timeout"`
+	UnhealthyThreshold int    `yaml:"unhealthy_threshold"`
+	HealthyThreshold   int    `yaml:"healthy_threshold"`
 }
 
 func Load(path string) (*Config, error) {

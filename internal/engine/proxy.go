@@ -1,12 +1,15 @@
 package engine
 
 import (
+	"context"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"sync"
 
-	lb "github.com/ahmedQuadimi/Aegis/internal/lb"
+	"github.com/ahmedQuadimi/Aegis/internal/adapters/config"
+	"github.com/ahmedQuadimi/Aegis/internal/lb"
 )
 
 type Engine struct {
@@ -14,7 +17,7 @@ type Engine struct {
 	proxy    *httputil.ReverseProxy
 }
 
-func NewEngine(balancer lb.Balancer, pool *sync.Pool) *httputil.ReverseProxy {
+func NewEngine(balancer lb.Balancer, pool *sync.Pool, route config.RouteConfig, backendMap map[string]*lb.Backend) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		targetAddress := balancer.Next()
 		target, err := url.Parse(targetAddress)
@@ -25,9 +28,22 @@ func NewEngine(balancer lb.Balancer, pool *sync.Pool) *httputil.ReverseProxy {
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
 		req.URL.Path = target.Path
+		ctx := context.WithValue(req.Context(), "target", targetAddress)
+		*req = *req.WithContext(ctx)
+	}
+
+	errorHandler := func(w http.ResponseWriter, r *http.Request, err error) {
+		targetAddr, _ := r.Context().Value("target").(string)
+		log.Printf("Passive Check: Backend %s failed: %v", targetAddr, err)
+		if b, ok := backendMap[targetAddr]; ok {
+			b.UpdateStatus(false)
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("Aegis: Service Temporarily Unavailable"))
 	}
 	return &httputil.ReverseProxy{
-		Director:   director,
-		BufferPool: &PoolBuffer{pool: pool},
+		Director:     director,
+		BufferPool:   &PoolBuffer{pool: pool},
+		ErrorHandler: errorHandler,
 	}
 }

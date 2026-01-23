@@ -10,14 +10,15 @@ defaults:
   health_check_interval: 10000
 
 routes:
-  - host: "api.aegis.io"
-    path: "/"
-    strategy: "round_robin"
-    retries: 3
-    
+  - host: "api.local"
     backends:
       - addr: "http://localhost:8081"
+        health_check:
+          method: "http"
+          interval: 5000
+          unhealthy_threshold: 1 # Dies on the first failure
+          healthy_threshold: 2   # Needs two successes to come back
       - addr: "http://localhost:8082"
-
-    rate_limit_rps: 1000
-    redis_url: "redis://localhost:6379"
+        health_check:
+          method: "http"
+          interval: 5000

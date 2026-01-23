@@ -24,19 +24,28 @@ func NewServer(cfg *config.Config) *Server {
 			return make([]byte, engine.DefaultBufferSize)
 		},
 	}
-	mainRoute := cfg.Routes[0]
-	targets := make([]string, len(mainRoute.Backends))
-	for i, backend := range mainRoute.Backends {
-		targets[i] = backend.Addr
+	dispatcher := engine.NewDiscpatcher()
+	for _, route := range cfg.Routes {
+		targets := make([]*lb.Backend, len(route.Backends))
+		for i, backend := range route.Backends {
+			targets[i] = &lb.Backend{Addr: backend.Addr, Config: backend.HealthCheck, Alive: true}
+		}
+
+		balancer := lb.RoundRobin{Backends: targets}
+		backendMap := make(map[string]*lb.Backend)
+		for _, b := range targets {
+			backendMap[b.Addr] = b
+		}
+
+		proxyHandler := engine.NewEngine(&balancer, pool, route, backendMap)
+		dispatcher.AddRoute(route.Host, proxyHandler)
 	}
-	balancer := lb.RoundRobin{Servers: targets}
-	proxyHandler := engine.NewEngine(&balancer, pool)
 
 	return &Server{
 		config: cfg,
 		server: &http.Server{
 			Addr:         fmt.Sprintf(":%d", cfg.Listener.Port),
-			Handler:      proxyHandler,
+			Handler:      dispatcher,
 			ReadTimeout:  time.Duration(cfg.Defaults.TimeoutRead) * time.Millisecond,
 			WriteTimeout: time.Duration(cfg.Defaults.TimeoutWrite) * time.Millisecond,
 			IdleTimeout:  time.Duration(cfg.Defaults.TimeoutIdle) * time.Millisecond,
