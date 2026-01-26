@@ -1,6 +1,8 @@
 listener:
   port: 8080
-  protocol: http
+  protocol: https
+  tls_cert: "cert.pem"
+  tls_key: "key.pem"
 
 defaults:
   timeout_read: 5000    

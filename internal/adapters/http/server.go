@@ -2,7 +2,9 @@ package http
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -24,7 +26,7 @@ func NewServer(cfg *config.Config) *Server {
 			return make([]byte, engine.DefaultBufferSize)
 		},
 	}
-	dispatcher := engine.NewDiscpatcher()
+	dispatcher := engine.NewDispatcher()
 	for _, route := range cfg.Routes {
 		targets := make([]*lb.Backend, len(route.Backends))
 		for i, backend := range route.Backends {
@@ -41,9 +43,7 @@ func NewServer(cfg *config.Config) *Server {
 		proxyHandler := engine.NewEngine(&balancer, pool, route, backendMap)
 		dispatcher.AddRoute(route.Host, proxyHandler)
 	}
-
 	finalHandler := middleware.LoggerMiddleware(dispatcher)
-
 	return &Server{
 		config: cfg,
 		server: &http.Server{
@@ -57,13 +57,44 @@ func NewServer(cfg *config.Config) *Server {
 }
 
 func (s *Server) Start() error {
-	fmt.Printf("The Aegis are heading out on port: %d\n", s.config.Listener.Port)
-	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return err
+	tlsConfig := &tls.Config{
+		MinVersion:               tls.VersionTLS12,
+		PreferServerCipherSuites: true,
+		CurvePreferences:         []tls.CurveID{tls.CurveP256, tls.X25519},
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		},
 	}
+
+	s.server.TLSConfig = tlsConfig
+
+	slog.Info("The Aegis are heading out",
+		"port", s.config.Listener.Port,
+		"protocol", s.config.Listener.Protocol,
+	)
+
+	if s.config.Listener.Protocol == "https" {
+		if s.config.Listener.TLSCert == "" || s.config.Listener.TLSKey == "" {
+			return fmt.Errorf("https enabled but cert/key paths are missing")
+		}
+		if err := s.server.ListenAndServeTLS(s.config.Listener.TLSCert, s.config.Listener.TLSKey); err != nil && err != http.ErrServerClosed {
+			return err
+		}
+	} else {
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	slog.Info("Aegis is shutting down...")
 	return s.server.Shutdown(ctx)
 }

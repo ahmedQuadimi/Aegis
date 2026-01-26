@@ -15,6 +15,8 @@ type Config struct {
 type ListenerConfig struct {
 	Port     int    `yaml:"port"`
 	Protocol string `yaml:"protocol"`
+	TLSCert  string `yaml:"tls_cert"`
+	TLSKey   string `yaml:"tls_key"`
 }
 
 type DefaultConfig struct {
