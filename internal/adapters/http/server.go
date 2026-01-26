@@ -10,6 +10,7 @@ import (
 	"github.com/ahmedQuadimi/Aegis/internal/adapters/config"
 	"github.com/ahmedQuadimi/Aegis/internal/engine"
 	"github.com/ahmedQuadimi/Aegis/internal/lb"
+	"github.com/ahmedQuadimi/Aegis/internal/middleware"
 )
 
 type Server struct {
@@ -41,11 +42,13 @@ func NewServer(cfg *config.Config) *Server {
 		dispatcher.AddRoute(route.Host, proxyHandler)
 	}
 
+	finalHandler := middleware.LoggerMiddleware(dispatcher)
+
 	return &Server{
 		config: cfg,
 		server: &http.Server{
 			Addr:         fmt.Sprintf(":%d", cfg.Listener.Port),
-			Handler:      dispatcher,
+			Handler:      finalHandler,
 			ReadTimeout:  time.Duration(cfg.Defaults.TimeoutRead) * time.Millisecond,
 			WriteTimeout: time.Duration(cfg.Defaults.TimeoutWrite) * time.Millisecond,
 			IdleTimeout:  time.Duration(cfg.Defaults.TimeoutIdle) * time.Millisecond,

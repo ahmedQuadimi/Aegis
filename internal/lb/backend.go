@@ -1,7 +1,7 @@
 package lb
 
 import (
-	"log"
+	"log/slog"
 	"net/url"
 	"sync"
 
@@ -39,14 +39,22 @@ func (b *Backend) UpdateStatus(isHealth bool) {
 		b.successCount++
 		if b.successCount >= b.Config.HealthyThreshold && !b.Alive {
 			b.Alive = true
-			log.Printf("Backend %s is now HEALTHY", b.Addr)
+			slog.Info("Backend status changed",
+				"backend", b.Addr,
+				"status", "HEALTHY",
+				"reason", "threshold_met",
+			)
 		}
 	} else {
 		b.successCount = 0
 		b.failureCount++
 		if b.failureCount >= b.Config.UnhealthyThreshold && b.Alive {
 			b.Alive = false
-			log.Printf("Backend %s is now UNHEALTHY", b.Addr)
+			slog.Warn("Backend status changed",
+				"backend", b.Addr,
+				"status", "UNHEALTHY",
+				"reason", "threshold_met",
+			)
 		}
 	}
 }
@@ -54,7 +62,10 @@ func (b *Backend) UpdateStatus(isHealth bool) {
 func (b *Backend) GetHost() (string, error) {
 	u, err := url.Parse(b.Addr)
 	if err != nil {
-		log.Fatal("Invalid backend address:", b.Addr)
+		slog.Error("Invalid backend address configuration",
+			"backend", b.Addr,
+			"error", err.Error(),
+		)
 		return "", err
 	}
 	return u.Host, nil

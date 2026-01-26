@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -26,7 +26,11 @@ func (rt *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if req.ContentLength == -1 || req.ContentLength > rt.MaxRetryBytes {
-		log.Printf("Payload too large (%d bytes). Streaming directly without retry.\n", req.ContentLength)
+		slog.Warn("Payload too large, skipping retry logic",
+			"content_length", req.ContentLength,
+			"max_limit", rt.MaxRetryBytes,
+			"action", "streaming_single_shot",
+		)
 		return rt.runSingleShot(req)
 	}
 
@@ -73,7 +77,12 @@ func (rt *RetryTransport) runRetryLoop(req *http.Request, bodyBytes []byte) (*ht
 			b.UpdateStatus(false)
 		}
 
-		log.Printf("Attempt %d failed for %s: %v, marking as potentially dead\n", i+1, targetAddr, err)
+		slog.Warn("Retry attempt failed",
+			"attempt", i+1,
+			"max_retries", rt.MaxRetries,
+			"backend", targetAddr,
+			"error", err.Error(),
+		)
 		lastErr = err
 	}
 

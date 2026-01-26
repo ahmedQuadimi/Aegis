@@ -10,9 +10,11 @@ import (
 
 	config "github.com/ahmedQuadimi/Aegis/internal/adapters/config"
 	aegisHttp "github.com/ahmedQuadimi/Aegis/internal/adapters/http"
+	"github.com/ahmedQuadimi/Aegis/internal/middleware"
 )
 
 func main() {
+	middleware.SetupLoggerMiddleware()
 	cfg, err := config.Load("config.yaml")
 	if err != nil {
 		panic(fmt.Sprintf("Failed to load config: %v", err))

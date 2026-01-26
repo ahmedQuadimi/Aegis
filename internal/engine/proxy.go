@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"sync"
@@ -24,7 +24,11 @@ func NewEngine(balancer lb.Balancer, pool *sync.Pool, route config.RouteConfig, 
 
 	errorHandler := func(w http.ResponseWriter, r *http.Request, err error) {
 		targetAddr, _ := r.Context().Value("target").(string)
-		log.Printf("Passive Check: Backend %s failed: %v", targetAddr, err)
+		if targetAddr == "" {
+			slog.Warn("Request dropped", "reason", "no_healthy_backends")
+		} else {
+			slog.Error("Passive Check failed", "backend", targetAddr, "error", err.Error())
+		}
 		if b, ok := backendMap[targetAddr]; ok {
 			b.UpdateStatus(false)
 		}
