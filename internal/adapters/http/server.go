@@ -18,7 +18,6 @@ type Server struct {
 }
 
 func NewServer(cfg *config.Config) *Server {
-
 	pool := &sync.Pool{
 		New: func() any {
 			return make([]byte, engine.DefaultBufferSize)
@@ -29,6 +28,7 @@ func NewServer(cfg *config.Config) *Server {
 		targets := make([]*lb.Backend, len(route.Backends))
 		for i, backend := range route.Backends {
 			targets[i] = &lb.Backend{Addr: backend.Addr, Config: backend.HealthCheck, Alive: true}
+			go lb.RunHealthCheck(targets[i])
 		}
 
 		balancer := lb.RoundRobin{Backends: targets}

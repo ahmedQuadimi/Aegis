@@ -1,15 +1,14 @@
 package engine
 
 import (
-	"context"
 	"log"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"sync"
 
 	"github.com/ahmedQuadimi/Aegis/internal/adapters/config"
 	"github.com/ahmedQuadimi/Aegis/internal/lb"
+	"github.com/ahmedQuadimi/Aegis/internal/transport"
 )
 
 type Engine struct {
@@ -19,17 +18,8 @@ type Engine struct {
 
 func NewEngine(balancer lb.Balancer, pool *sync.Pool, route config.RouteConfig, backendMap map[string]*lb.Backend) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
-		targetAddress := balancer.Next()
-		target, err := url.Parse(targetAddress)
-		if err != nil {
-			panic(err)
-		}
-
-		req.URL.Scheme = target.Scheme
-		req.URL.Host = target.Host
-		req.URL.Path = target.Path
-		ctx := context.WithValue(req.Context(), "target", targetAddress)
-		*req = *req.WithContext(ctx)
+		req.Header.Set("X-Forwarded-Host", req.Host)
+		req.Header.Set("X-Origin", "Aegis-Proxy")
 	}
 
 	errorHandler := func(w http.ResponseWriter, r *http.Request, err error) {
@@ -45,5 +35,11 @@ func NewEngine(balancer lb.Balancer, pool *sync.Pool, route config.RouteConfig, 
 		Director:     director,
 		BufferPool:   &PoolBuffer{pool: pool},
 		ErrorHandler: errorHandler,
+		Transport: &transport.RetryTransport{
+			RoundTripper:  http.DefaultTransport,
+			Balancer:      balancer,
+			MaxRetries:    route.Retries,
+			MaxRetryBytes: route.RetryBufferSize,
+		},
 	}
 }

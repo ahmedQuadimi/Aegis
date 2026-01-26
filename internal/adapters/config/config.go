@@ -35,8 +35,9 @@ type RouteConfig struct {
 	RateLimitRPS int    `yaml:"rate_limit_rps"`
 	RedisURL     string `yaml:"redis_url"`
 
-	HealthCheckInterval int `yaml:"health_check_interval"`
-	TimeoutConnect      int `yaml:"timeout_connect"`
+	HealthCheckInterval int   `yaml:"health_check_interval"`
+	TimeoutConnect      int   `yaml:"timeout_connect"`
+	RetryBufferSize     int64 `yaml:"retry_buffer_size"`
 }
 
 type BackendConfig struct {

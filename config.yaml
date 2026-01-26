@@ -12,13 +12,17 @@ defaults:
 routes:
   - host: "api.local"
     backends:
-      - addr: "http://localhost:8081"
+      - addr: "http://127.0.0.1:8081"
         health_check:
           method: "http"
           interval: 5000
-          unhealthy_threshold: 1 # Dies on the first failure
-          healthy_threshold: 2   # Needs two successes to come back
-      - addr: "http://localhost:8082"
+          unhealthy_threshold: 1
+          healthy_threshold: 2
+      - addr: "http://127.0.0.1:8082"
         health_check:
           method: "http"
           interval: 5000
+          unhealthy_threshold: 1
+          healthy_threshold: 2
+    retries: 3
+    retry_buffer_size: 5242880
