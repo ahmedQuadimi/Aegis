@@ -9,7 +9,7 @@ import (
 	"time"
 
 	config "github.com/ahmedQuadimi/Aegis/internal/adapters/config"
-	aegisHttp "github.com/ahmedQuadimi/Aegis/internal/adapters/http"
+	aegisHttp "github.com/ahmedQuadimi/Aegis/internal/adapters/server"
 	"github.com/ahmedQuadimi/Aegis/internal/middleware"
 )
 

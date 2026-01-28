@@ -28,6 +28,7 @@ type DefaultConfig struct {
 }
 
 type RouteConfig struct {
+	CacheTTL int             `yaml:"cache_ttl"`
 	Host     string          `yaml:"host"`
 	Path     string          `yaml:"path"`
 	Strategy string          `yaml:"strategy"`
@@ -37,9 +38,12 @@ type RouteConfig struct {
 	RateLimitRPS int    `yaml:"rate_limit_rps"`
 	RedisURL     string `yaml:"redis_url"`
 
-	HealthCheckInterval int   `yaml:"health_check_interval"`
-	TimeoutConnect      int   `yaml:"timeout_connect"`
-	RetryBufferSize     int64 `yaml:"retry_buffer_size"`
+	HealthCheckInterval int     `yaml:"health_check_interval"`
+	TimeoutConnect      int     `yaml:"timeout_connect"`
+	RetryBufferSize     int64   `yaml:"retry_buffer_size"`
+	RateLimit           float64 `yaml:"rate_limit"`
+	Burst               int     `yaml:"burst"`
+	CleanupDuration     int     `yaml:"cleanup_duration"`
 }
 
 type BackendConfig struct {

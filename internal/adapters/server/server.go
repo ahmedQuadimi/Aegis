@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/ahmedQuadimi/Aegis/internal/adapters/config"
+	"github.com/ahmedQuadimi/Aegis/internal/cache"
 	"github.com/ahmedQuadimi/Aegis/internal/engine"
 	"github.com/ahmedQuadimi/Aegis/internal/lb"
 	"github.com/ahmedQuadimi/Aegis/internal/middleware"
+	"golang.org/x/time/rate"
 )
 
 type Server struct {
@@ -39,9 +41,31 @@ func NewServer(cfg *config.Config) *Server {
 		for _, b := range targets {
 			backendMap[b.Addr] = b
 		}
-
 		proxyHandler := engine.NewEngine(&balancer, pool, route, backendMap)
-		dispatcher.AddRoute(route.Host, proxyHandler)
+		var finalHandler http.Handler = proxyHandler
+		slog.Info("Configuring route",
+			"host", route.Host,
+			"rate_limit", route.RateLimit,
+			"burst", route.Burst,
+		)
+
+		if route.CacheTTL > 0 {
+			slog.Info("Caching enabled",
+				"ttl", route.CacheTTL,
+			)
+			cachePerRoute := middleware.NewCacheMiddleware(cache.NewMemoryCache(), route.CacheTTL)
+			finalHandler = cachePerRoute(finalHandler)
+		}
+
+		if route.RateLimit > 0 {
+			slog.Info("Rate limiting enabled",
+				"rps", route.RateLimit,
+				"burst", route.Burst,
+			)
+			limiter := middleware.NewIPRateLimiter(rate.Limit(route.RateLimit), route.Burst, route)
+			finalHandler = limiter.RateLimitMiddleware(finalHandler)
+		}
+		dispatcher.AddRoute(route.Host, finalHandler)
 	}
 	finalHandler := middleware.LoggerMiddleware(dispatcher)
 	return &Server{

@@ -13,6 +13,10 @@ defaults:
 
 routes:
   - host: "api.local"
+    cache_ttl: 10
+    # rate_limit: 1
+    # burst: 3
+    cleanup_duration: 3000
     backends:
       - addr: "http://127.0.0.1:8081"
         health_check:
