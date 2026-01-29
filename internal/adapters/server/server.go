@@ -24,50 +24,16 @@ type Server struct {
 
 func NewServer(cfg *config.Config) *Server {
 	pool := &sync.Pool{
-		New: func() any {
-			return make([]byte, engine.DefaultBufferSize)
-		},
+		New: func() any { return make([]byte, engine.DefaultBufferSize) },
 	}
 	dispatcher := engine.NewDispatcher()
-	for _, route := range cfg.Routes {
-		targets := make([]*lb.Backend, len(route.Backends))
-		for i, backend := range route.Backends {
-			targets[i] = &lb.Backend{Addr: backend.Addr, Config: backend.HealthCheck, Alive: true}
-			go lb.RunHealthCheck(targets[i])
-		}
 
-		balancer := lb.RoundRobin{Backends: targets}
-		backendMap := make(map[string]*lb.Backend)
-		for _, b := range targets {
-			backendMap[b.Addr] = b
-		}
-		proxyHandler := engine.NewEngine(&balancer, pool, route, backendMap)
-		var finalHandler http.Handler = proxyHandler
-		slog.Info("Configuring route",
-			"host", route.Host,
-			"rate_limit", route.RateLimit,
-			"burst", route.Burst,
-		)
-
-		if route.CacheTTL > 0 {
-			slog.Info("Caching enabled",
-				"ttl", route.CacheTTL,
-			)
-			cachePerRoute := middleware.NewCacheMiddleware(cache.NewMemoryCache(), route.CacheTTL)
-			finalHandler = cachePerRoute(finalHandler)
-		}
-
-		if route.RateLimit > 0 {
-			slog.Info("Rate limiting enabled",
-				"rps", route.RateLimit,
-				"burst", route.Burst,
-			)
-			limiter := middleware.NewIPRateLimiter(rate.Limit(route.RateLimit), route.Burst, route)
-			finalHandler = limiter.RateLimitMiddleware(finalHandler)
-		}
-		dispatcher.AddRoute(route.Host, finalHandler)
+	for _, routeCfg := range cfg.Routes {
+		handler := buildRouteHandler(routeCfg, pool)
+		dispatcher.AddRoute(routeCfg.Host, handler)
 	}
 	finalHandler := middleware.LoggerMiddleware(dispatcher)
+
 	return &Server{
 		config: cfg,
 		server: &http.Server{
@@ -80,8 +46,64 @@ func NewServer(cfg *config.Config) *Server {
 	}
 }
 
+func buildRouteHandler(cfg config.RouteConfig, pool *sync.Pool) http.Handler {
+	targets := make([]*lb.Backend, len(cfg.Backends))
+	backendMap := make(map[string]*lb.Backend)
+
+	for i, backend := range cfg.Backends {
+		b := &lb.Backend{
+			Addr:   backend.Addr,
+			Config: backend.HealthCheck,
+			Alive:  true,
+		}
+		targets[i] = b
+		backendMap[b.Addr] = b
+		go lb.RunHealthCheck(b)
+	}
+
+	balancer := lb.RoundRobin{Backends: targets}
+
+	proxyEngine := engine.NewEngine(&balancer, pool, cfg, backendMap)
+
+	var handler http.Handler = proxyEngine
+
+	slog.Info("Configuring route",
+		"host", cfg.Host,
+		"rate_limit", cfg.RateLimit,
+		"cache_ttl", cfg.CacheTTL,
+	)
+
+	if cfg.CacheTTL > 0 {
+		storage := cache.NewMemoryCache()
+		handler = middleware.NewCacheMiddleware(storage, cfg.CacheTTL)(handler)
+	}
+
+	if cfg.RateLimit > 0 {
+		limiter := middleware.NewIPRateLimiter(rate.Limit(cfg.RateLimit), cfg.Burst, cfg)
+		handler = limiter.RateLimitMiddleware(handler)
+	}
+
+	return handler
+}
+
 func (s *Server) Start() error {
-	tlsConfig := &tls.Config{
+	slog.Info("The Aegis are heading out",
+		"port", s.config.Listener.Port,
+		"protocol", s.config.Listener.Protocol,
+	)
+
+	if s.config.Listener.Protocol == "https" {
+		return s.listenAndServeTLS()
+	}
+	return s.server.ListenAndServe()
+}
+
+func (s *Server) listenAndServeTLS() error {
+	if s.config.Listener.TLSCert == "" || s.config.Listener.TLSKey == "" {
+		return fmt.Errorf("https enabled but cert/key paths are missing")
+	}
+
+	s.server.TLSConfig = &tls.Config{
 		MinVersion:               tls.VersionTLS12,
 		PreferServerCipherSuites: true,
 		CurvePreferences:         []tls.CurveID{tls.CurveP256, tls.X25519},
@@ -95,27 +117,7 @@ func (s *Server) Start() error {
 		},
 	}
 
-	s.server.TLSConfig = tlsConfig
-
-	slog.Info("The Aegis are heading out",
-		"port", s.config.Listener.Port,
-		"protocol", s.config.Listener.Protocol,
-	)
-
-	if s.config.Listener.Protocol == "https" {
-		if s.config.Listener.TLSCert == "" || s.config.Listener.TLSKey == "" {
-			return fmt.Errorf("https enabled but cert/key paths are missing")
-		}
-		if err := s.server.ListenAndServeTLS(s.config.Listener.TLSCert, s.config.Listener.TLSKey); err != nil && err != http.ErrServerClosed {
-			return err
-		}
-	} else {
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			return err
-		}
-	}
-
-	return nil
+	return s.server.ListenAndServeTLS(s.config.Listener.TLSCert, s.config.Listener.TLSKey)
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

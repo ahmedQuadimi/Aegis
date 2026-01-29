@@ -8,7 +8,11 @@ import (
 )
 
 func SetupLoggerMiddleware() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// opts := &slog.HandlerOptions{
+	// 	Level: slog.LevelError,
+	// }
+	var opts *slog.HandlerOptions = nil
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, opts))
 	slog.SetDefault(logger)
 }
 

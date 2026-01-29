@@ -25,7 +25,7 @@ func (r *ResponseInterceptor) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-func NewCacheMiddleware(storage *cache.MemoryCache, ttl int) func(http.Handler) http.Handler {
+func NewCacheMiddleware(storage cache.Storage, ttl int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
