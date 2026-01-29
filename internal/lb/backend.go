@@ -4,17 +4,31 @@ import (
 	"log/slog"
 	"net/url"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ahmedQuadimi/Aegis/internal/adapters/config"
 )
 
 type Backend struct {
-	Addr         string
-	Alive        bool
-	failureCount int
-	successCount int
-	Config       config.HealthCheckConfig
-	mux          sync.RWMutex
+	Addr           string
+	Alive          bool
+	failureCount   int
+	successCount   int
+	Config         config.HealthCheckConfig
+	mux            sync.RWMutex
+	ActiveRequests int64
+}
+
+func (b *Backend) Inc() {
+	atomic.AddInt64(&b.ActiveRequests, 1)
+}
+
+func (b *Backend) Dec() {
+	atomic.AddInt64(&b.ActiveRequests, -1)
+}
+
+func (b *Backend) GetActiveRequests() int64 {
+	return atomic.LoadInt64(&b.ActiveRequests)
 }
 
 func (b *Backend) SetAlive(alive bool) {
