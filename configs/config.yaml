@@ -1,8 +1,7 @@
 listener:
   port: 8080
   protocol: http
-  tls_cert: "cert.pem"
-  tls_key: "key.pem"
+  # Pas de TLS pour ce test de performance pur
 
 defaults:
   timeout_read: 5000    
@@ -13,23 +12,25 @@ defaults:
 
 routes:
   - host: "api.local"
-    cache_ttl: 10
-    rate_limit: 1
-    burst: 3
-    balancer: "least-connections"
+    cache_ttl: 0        # ⚠️ CRUCIAL : Désactivé pour forcer le passage par le LB
+    rate_limit: 0       # Désactivé pour ne pas freiner le test
+    burst: 0
+    balancer: "least-connections" # 🧠 L'algo que tu veux tester
     cleanup_duration: 3000
-    backends:
-      - addr: "http://localhost:9090"
-        health_check:
-          method: "http"
-          interval: 5000
-          unhealthy_threshold: 1
-          healthy_threshold: 2
-      - addr: "http://localhost:9091"
-        health_check:
-          method: "http"
-          interval: 5000
-          unhealthy_threshold: 1
-          healthy_threshold: 2
     retries: 3
     retry_buffer_size: 5242880
+    
+    backends:
+      - addr: "http://127.0.0.1:9001" # 🐇 Le Serveur Rapide
+        health_check:
+          method: "http"
+          interval: 5000
+          unhealthy_threshold: 1
+          healthy_threshold: 2
+
+      - addr: "http://127.0.0.1:9002" # 🐢 Le Serveur Lent
+        health_check:
+          method: "http"
+          interval: 5000
+          unhealthy_threshold: 1
+          healthy_threshold: 2

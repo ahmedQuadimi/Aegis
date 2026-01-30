@@ -15,6 +15,7 @@ func (lc *LeastConnections) Next() string {
 		active = backend.GetActiveRequests()
 		if minReq == -1 || active < minReq {
 			best = backend
+			minReq = active
 		}
 	}
 	return best.Addr

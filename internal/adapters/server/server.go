@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -51,19 +52,24 @@ func buildRouteHandler(cfg config.RouteConfig, pool *sync.Pool) http.Handler {
 	backendMap := make(map[string]*lb.Backend)
 
 	for i, backend := range cfg.Backends {
+		parsedURL, err := url.Parse(backend.Addr)
+		if err != nil {
+			panic(fmt.Sprintf("Invalid backend URL %s: %v", backend.Addr, err))
+		}
 		b := &lb.Backend{
 			Addr:   backend.Addr,
 			Config: backend.HealthCheck,
 			Alive:  true,
+			URL:    parsedURL,
 		}
 		targets[i] = b
 		backendMap[b.Addr] = b
 		go lb.RunHealthCheck(b)
 	}
 
-	balancer := lb.RoundRobin{Backends: targets}
+	balancer := getRightBalancer(&cfg, targets)
 
-	proxyEngine := engine.NewEngine(&balancer, pool, cfg, backendMap)
+	proxyEngine := engine.NewEngine(balancer, pool, cfg, backendMap)
 
 	var handler http.Handler = proxyEngine
 
@@ -84,6 +90,16 @@ func buildRouteHandler(cfg config.RouteConfig, pool *sync.Pool) http.Handler {
 	}
 
 	return handler
+}
+
+func getRightBalancer(cfg *config.RouteConfig, backends []*lb.Backend) lb.Balancer {
+	slog.Info("Loading Balancer Strategy", "strategy", cfg.BalancerStrategy)
+	if cfg.BalancerStrategy == "round-robin" {
+		return &lb.RoundRobin{Backends: backends}
+	} else if cfg.BalancerStrategy == "least-connections" {
+		return &lb.LeastConnections{Backends: backends}
+	}
+	panic("Unknown balancer strategy: " + cfg.BalancerStrategy)
 }
 
 func (s *Server) Start() error {

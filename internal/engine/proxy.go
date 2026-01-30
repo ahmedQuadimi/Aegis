@@ -44,6 +44,7 @@ func NewEngine(balancer lb.Balancer, pool *sync.Pool, route config.RouteConfig, 
 			Balancer:      balancer,
 			MaxRetries:    route.Retries,
 			MaxRetryBytes: route.RetryBufferSize,
+			BackendMap:    backendMap,
 		},
 	}
 }

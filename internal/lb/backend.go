@@ -1,6 +1,7 @@
 package lb
 
 import (
+	"fmt"
 	"log/slog"
 	"net/url"
 	"sync"
@@ -10,6 +11,7 @@ import (
 )
 
 type Backend struct {
+	URL            *url.URL
 	Addr           string
 	Alive          bool
 	failureCount   int
@@ -74,13 +76,8 @@ func (b *Backend) UpdateStatus(isHealth bool) {
 }
 
 func (b *Backend) GetHost() (string, error) {
-	u, err := url.Parse(b.Addr)
-	if err != nil {
-		slog.Error("Invalid backend address configuration",
-			"backend", b.Addr,
-			"error", err.Error(),
-		)
-		return "", err
+	if b.URL == nil {
+		return "", fmt.Errorf("backend URL not initialized")
 	}
-	return u.Host, nil
+	return b.URL.Host, nil
 }

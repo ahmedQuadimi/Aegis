@@ -17,9 +17,10 @@ type RetryTransport struct {
 	MaxRetries    int
 	MaxRetryBytes int64
 	Balancer      lb.Balancer
-	BackendMap    map[string]*lb.Backend
+	BackendMap    map[string]*lb.Backend // On va s'en servir !
 }
 
+// RoundTrip reste identique...
 func (rt *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Body == nil || req.Body == http.NoBody {
 		return rt.runRetryLoop(req, nil)
@@ -48,8 +49,15 @@ func (rt *RetryTransport) runSingleShot(req *http.Request) (*http.Response, erro
 	if targetAddr == "" {
 		return nil, fmt.Errorf("no healthy backends")
 	}
+	backend := rt.BackendMap[targetAddr]
 
-	rt.setTarget(req, targetAddr)
+	if backend != nil {
+		backend.Inc()
+		defer backend.Dec()
+		req.URL.Scheme = backend.URL.Scheme
+		req.URL.Host = backend.URL.Host
+		req.Host = backend.URL.Host
+	}
 
 	return rt.RoundTripper.RoundTrip(req)
 }
@@ -62,24 +70,36 @@ func (rt *RetryTransport) runRetryLoop(req *http.Request, bodyBytes []byte) (*ht
 		if targetAddr == "" {
 			return nil, fmt.Errorf("no healthy backends")
 		}
-		rt.setTarget(req, targetAddr)
+
+		backend := rt.BackendMap[targetAddr]
+		if backend == nil {
+			continue
+		}
+
+		backend.Inc()
+
+		req.URL.Scheme = backend.URL.Scheme
+		req.URL.Host = backend.URL.Host
+		req.Host = backend.URL.Host // Important pour les Vhosts
+
+		ctx := context.WithValue(req.Context(), "target", targetAddr)
+		req = req.WithContext(ctx)
+
 		if bodyBytes != nil {
 			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 			req.ContentLength = int64(len(bodyBytes))
 		}
 
 		resp, err := rt.RoundTripper.RoundTrip(req)
+		backend.Dec()
+
 		if err == nil {
 			return resp, nil
 		}
 
-		if b, ok := rt.BackendMap[targetAddr]; ok {
-			b.UpdateStatus(false)
-		}
-
+		backend.UpdateStatus(false)
 		slog.Warn("Retry attempt failed",
 			"attempt", i+1,
-			"max_retries", rt.MaxRetries,
 			"backend", targetAddr,
 			"error", err.Error(),
 		)

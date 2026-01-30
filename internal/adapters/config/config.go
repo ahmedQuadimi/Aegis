@@ -44,6 +44,7 @@ type RouteConfig struct {
 	RateLimit           float64 `yaml:"rate_limit"`
 	Burst               int     `yaml:"burst"`
 	CleanupDuration     int     `yaml:"cleanup_duration"`
+	BalancerStrategy    string  `yaml:"balancer"`
 }
 
 type BackendConfig struct {
