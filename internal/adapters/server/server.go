@@ -94,9 +94,10 @@ func buildRouteHandler(cfg config.RouteConfig, pool *sync.Pool) http.Handler {
 
 func getRightBalancer(cfg *config.RouteConfig, backends []*lb.Backend) lb.Balancer {
 	slog.Info("Loading Balancer Strategy", "strategy", cfg.BalancerStrategy)
-	if cfg.BalancerStrategy == "round-robin" {
+	switch cfg.BalancerStrategy {
+	case lb.BalancerRoundRobin:
 		return &lb.RoundRobin{Backends: backends}
-	} else if cfg.BalancerStrategy == "least-connections" {
+	case lb.BalancerLeastConnections:
 		return &lb.LeastConnections{Backends: backends}
 	}
 	panic("Unknown balancer strategy: " + cfg.BalancerStrategy)
