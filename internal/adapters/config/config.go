@@ -7,9 +7,14 @@ import (
 )
 
 type Config struct {
-	Listener ListenerConfig `yaml:"listener"`
-	Defaults DefaultConfig  `yaml:"defaults"`
-	Routes   []RouteConfig  `yaml:"routes"`
+	Listener      ListenerConfig      `yaml:"listener"`
+	Defaults      DefaultConfig       `yaml:"defaults"`
+	Routes        []RouteConfig       `yaml:"routes"`
+	Observability ObservabilityConfig `yaml:"observability"`
+}
+
+type ObservabilityConfig struct {
+	MetricsEnabled bool `yaml:"metrics_enabled"`
 }
 
 type ListenerConfig struct {

@@ -11,6 +11,9 @@ defaults:
   timeout_connect: 2000 
   health_check_interval: 10000
 
+observability:
+  metrics_enabled: false
+
 routes:
   - host: "api.local"
     # cache_ttl: 10
@@ -19,13 +22,13 @@ routes:
     balancer: "least_connections"
     cleanup_duration: 3000
     backends:
-      - addr: "http://localhost:9090"
+      - addr: "http://localhost:9091"
         health_check:
           method: "http"
           interval: 5000
           unhealthy_threshold: 1
-          healthy_threshold: 2
-      - addr: "http://localhost:9091"
+          healthy_threshold: 2 
+      - addr: "http://localhost:9092"
         health_check:
           method: "http"
           interval: 5000

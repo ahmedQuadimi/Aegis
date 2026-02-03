@@ -15,6 +15,7 @@ import (
 	"github.com/ahmedQuadimi/Aegis/internal/engine"
 	"github.com/ahmedQuadimi/Aegis/internal/lb"
 	"github.com/ahmedQuadimi/Aegis/internal/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/time/rate"
 )
 
@@ -28,12 +29,23 @@ func NewServer(cfg *config.Config) *Server {
 		New: func() any { return make([]byte, engine.DefaultBufferSize) },
 	}
 	dispatcher := engine.NewDispatcher()
-
+	mux := http.NewServeMux()
+	if cfg.Observability.MetricsEnabled {
+		slog.Info("Observability: ENABLED (Route /metrics is active)")
+		mux.Handle("/metrics", promhttp.Handler())
+	} else {
+		slog.Info("Observability: DISABLED (Lightweight mode)")
+	}
 	for _, routeCfg := range cfg.Routes {
 		handler := buildRouteHandler(routeCfg, pool)
 		dispatcher.AddRoute(routeCfg.Host, handler)
 	}
-	finalHandler := middleware.LoggerMiddleware(dispatcher)
+	mux.Handle("/", dispatcher)
+	var finalHandler http.Handler = mux
+	if cfg.Observability.MetricsEnabled {
+		finalHandler = middleware.MetricsMiddleware(finalHandler)
+	}
+	finalHandler = middleware.LoggerMiddleware(finalHandler)
 
 	return &Server{
 		config: cfg,
