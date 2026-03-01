@@ -11,13 +11,19 @@ defaults:
   timeout_connect: 2000 
   health_check_interval: 10000
 
+redis:
+  enabled: true
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
 observability:
-  metrics_enabled: false
+  metrics_enabled: true
 
 routes:
   - host: "api.local"
     # cache_ttl: 10
-    # rate_limit: 1
+    rate_limit: 3
     # burst: 3
     balancer: "least_connections"
     cleanup_duration: 3000

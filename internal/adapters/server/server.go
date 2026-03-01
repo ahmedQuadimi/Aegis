@@ -15,6 +15,7 @@ import (
 	"github.com/ahmedQuadimi/Aegis/internal/engine"
 	"github.com/ahmedQuadimi/Aegis/internal/lb"
 	"github.com/ahmedQuadimi/Aegis/internal/middleware"
+	redis_adapter "github.com/ahmedQuadimi/Aegis/internal/redis"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/time/rate"
 )
@@ -30,17 +31,31 @@ func NewServer(cfg *config.Config) *Server {
 	}
 	dispatcher := engine.NewDispatcher()
 	mux := http.NewServeMux()
+
+	var rdb *redis_adapter.Client
+	if cfg.Redis.Enabled {
+		var err error
+		rdb, err = redis_adapter.NewClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+		if err != nil {
+			slog.Error("Failed to connect to Redis", "error", err)
+		} else {
+			slog.Info("Connected to Redis")
+		}
+	}
+
 	if cfg.Observability.MetricsEnabled {
 		slog.Info("Observability: ENABLED (Route /metrics is active)")
 		mux.Handle("/metrics", promhttp.Handler())
 	} else {
 		slog.Info("Observability: DISABLED (Lightweight mode)")
 	}
+
 	for _, routeCfg := range cfg.Routes {
-		handler := buildRouteHandler(routeCfg, pool)
+		handler := buildRouteHandler(cfg, routeCfg, pool, rdb)
 		dispatcher.AddRoute(routeCfg.Host, handler)
 	}
 	mux.Handle("/", dispatcher)
+
 	var finalHandler http.Handler = mux
 	if cfg.Observability.MetricsEnabled {
 		finalHandler = middleware.MetricsMiddleware(finalHandler)
@@ -59,7 +74,7 @@ func NewServer(cfg *config.Config) *Server {
 	}
 }
 
-func buildRouteHandler(cfg config.RouteConfig, pool *sync.Pool) http.Handler {
+func buildRouteHandler(gcfg *config.Config, cfg config.RouteConfig, pool *sync.Pool, rdb *redis_adapter.Client) http.Handler {
 	targets := make([]*lb.Backend, len(cfg.Backends))
 	backendMap := make(map[string]*lb.Backend)
 
@@ -97,8 +112,14 @@ func buildRouteHandler(cfg config.RouteConfig, pool *sync.Pool) http.Handler {
 	}
 
 	if cfg.RateLimit > 0 {
-		limiter := middleware.NewIPRateLimiter(rate.Limit(cfg.RateLimit), cfg.Burst, cfg)
-		handler = limiter.RateLimitMiddleware(handler)
+		if gcfg.Redis.Enabled && rdb != nil {
+			slog.Info("Using REDIS Rate Limiter", "host", cfg.Host)
+			handler = middleware.RedisRateLimiter(handler, rdb, cfg)
+		} else {
+			slog.Info("Using MEMORY Rate Limiter", "host", cfg.Host)
+			limiter := middleware.NewIPRateLimiter(rate.Limit(cfg.RateLimit), cfg.Burst, cfg)
+			handler = limiter.RateLimitMiddleware(handler)
+		}
 	}
 
 	return handler

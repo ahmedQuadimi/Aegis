@@ -11,6 +11,14 @@ type Config struct {
 	Defaults      DefaultConfig       `yaml:"defaults"`
 	Routes        []RouteConfig       `yaml:"routes"`
 	Observability ObservabilityConfig `yaml:"observability"`
+	Redis         RedisConfig         `yaml:"redis"`
+}
+
+type RedisConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Addr     string `yaml:"addr"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
 }
 
 type ObservabilityConfig struct {
@@ -43,13 +51,13 @@ type RouteConfig struct {
 	RateLimitRPS int    `yaml:"rate_limit_rps"`
 	RedisURL     string `yaml:"redis_url"`
 
-	HealthCheckInterval int     `yaml:"health_check_interval"`
-	TimeoutConnect      int     `yaml:"timeout_connect"`
-	RetryBufferSize     int64   `yaml:"retry_buffer_size"`
-	RateLimit           float64 `yaml:"rate_limit"`
-	Burst               int     `yaml:"burst"`
-	CleanupDuration     int     `yaml:"cleanup_duration"`
-	BalancerStrategy    string  `yaml:"balancer"`
+	HealthCheckInterval int    `yaml:"health_check_interval"`
+	TimeoutConnect      int    `yaml:"timeout_connect"`
+	RetryBufferSize     int64  `yaml:"retry_buffer_size"`
+	RateLimit           int    `yaml:"rate_limit"`
+	Burst               int    `yaml:"burst"`
+	CleanupDuration     int    `yaml:"cleanup_duration"`
+	BalancerStrategy    string `yaml:"balancer"`
 }
 
 type BackendConfig struct {
