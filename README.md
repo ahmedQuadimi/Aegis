@@ -27,18 +27,25 @@ Aegis supports secure communication by acting as a TLS termination proxy.
 * It accepts encrypted HTTPS traffic from the public internet, decrypts it using the provided TLS certificate and private key, and forwards plain HTTP traffic to the internal backends. 
 * This offloads CPU-intensive cryptographic operations from your application servers.
 
-### 4. Hybrid Rate Limiting
+### 4. In-Memory Response Caching
+To significantly reduce latency and alleviate load on backend servers, Aegis implements an efficient in-memory caching layer. 
+
+* **TTL-Based Storage:** When enabled via the `cache_ttl` configuration directive for a specific route, the proxy stores the HTTP responses in RAM.
+* **Backend Offloading:** Subsequent identical requests within the Time-To-Live (TTL) window are served directly from the proxy's memory. This bypasses the backend network call entirely, achieving sub-millisecond response times and protecting the application layer from traffic spikes.
+
+
+### 5. Hybrid Rate Limiting
 To protect the infrastructure from DDoS attacks or abusive clients, Aegis offers a dual-strategy rate limiting system:
 * **Standalone Mode (In-Memory):** Uses an efficient Token Bucket algorithm stored in local RAM. Ideal for single-instance deployments.
 * **Distributed Mode (Redis-Backed):** When horizontally scaling Aegis itself across multiple servers, the rate limiter utilizes a shared Redis database. This ensures that an IP address cannot bypass quotas by hitting different Aegis proxy instances.
 
-### 5. Observability: Prometheus & Grafana
+### 6. Observability: Prometheus & Grafana
 Understanding traffic patterns is critical. Aegis includes an embedded Prometheus exporter.
 * When metrics_enabled is set to true, Aegis exposes a /metrics endpoint.
 * It tracks request counts, latency histograms, error rates, and backend status.
 * This integrates seamlessly with Grafana, allowing for real-time visualization of the proxy's performance and system health.
 
-### 6. Docker Integration
+### 7. Docker Integration
 Aegis is container-native. The entire ecosystem (Proxy, Redis, Prometheus, Grafana, and sample Backends) can be orchestrated using Docker Compose, providing a reproducible environment for development and production.
 
 ---
@@ -48,6 +55,15 @@ Aegis is container-native. The entire ecosystem (Proxy, Redis, Prometheus, Grafa
 ### Prerequisites
 * Go 1.21+
 * Docker and Docker Compose (for the full infrastructure stack)
+
+### Testing with Dummy Backends
+To quickly test the load balancing and health checking features, you can use Python's built-in HTTP server to simulate backend services. Open two separate terminals and run:
+
+    # Terminal 1: Start Backend 1
+    python3 -m http.server 9091
+
+    # Terminal 2: Start Backend 2
+    python3 -m http.server 9092
 
 ### Running the Full Stack (Recommended)
 To evaluate the complete architecture including Redis (for distributed rate limiting) and the Observability stack (Prometheus/Grafana):
